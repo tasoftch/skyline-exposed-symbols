@@ -1,0 +1,23 @@
+{
+  "name": "skyline/exposed-symbols",
+  "license": "BSD-3-Clause",
+  "minimum-stability": "dev",
+  "authors": [
+    {
+      "name": "Thomas Abplanalp",
+      "email": "info@tasoft.ch"
+    }
+  ],
+  "autoload": {
+    "psr-4": {
+      "Skyline\\Expose\\" : "src"
+    }
+  },
+  "require" : {
+    "php": "^7.2"
+  },
+  "require-dev": {
+    "phpunit/phpunit": "^6",
+    "skyline/compiler": "dev-master"
+  }
+}

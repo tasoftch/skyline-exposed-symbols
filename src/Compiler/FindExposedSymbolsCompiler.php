@@ -1,0 +1,206 @@
+<?php
+/**
+ * BSD 3-Clause License
+ *
+ * Copyright (c) 2019, TASoft Applications
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *
+ *  Redistributions of source code must retain the above copyright notice, this
+ *   list of conditions and the following disclaimer.
+ *
+ *  Redistributions in binary form must reproduce the above copyright notice,
+ *   this list of conditions and the following disclaimer in the documentation
+ *   and/or other materials provided with the distribution.
+ *
+ *  Neither the name of the copyright holder nor the names of its
+ *   contributors may be used to endorse or promote products derived from
+ *   this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+ * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+ * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+ * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+ */
+
+namespace Skyline\Expose\Compiler;
+
+
+use ReflectionClass;
+use ReflectionException;
+use Skyline\Compiler\AbstractCompiler;
+use Skyline\Compiler\CompilerConfiguration;
+use Skyline\Compiler\CompilerContext;
+use Skyline\Compiler\Project\Attribute\SearchPathAttribute;
+use Skyline\Kernel\ExposeClassInterface;
+use Skyline\Kernel\ExposeClassMethodsInterface;
+use Throwable;
+
+class FindExposedSymbolsCompiler extends AbstractCompiler
+{
+    private $registered = ["purposes" => [], "method_purposes" => [], "classes" => []];
+
+
+    public function compile(CompilerContext $context)
+    {
+        foreach($context->getSourceCodeManager()->yieldSourceFiles("/^[a-z_][a-z_0-9]*?\.php$/i", [ SearchPathAttribute::SEARCH_PATH_CLASSES ]) as $file) {
+            if(preg_match("/^([a-z_][a-z_0-9]*?)\.php$/i", basename($file), $ms)) {
+                $className = $ms[1];
+
+                $contents = file_get_contents($file);
+
+                if(preg_match("/class\s+$className/i", $contents)) {
+                    if(preg_match("/^\s*namespace\s+([a-z_0-9\\\]+)\s*;/im", $contents, $ms)) {
+                        $className = "$ms[1]\\$className";
+                    }
+
+                    try {
+                        if(class_exists($className)) {
+                            $class = new ReflectionClass($className);
+
+                            if ($class->implementsInterface(ExposeClassInterface::class)) {
+                                $purposes = $className::getPurposes();
+                                foreach($purposes as $purpose) {
+                                    $this->registerPurpose($purpose, $className);
+                                }
+
+                                $par = $class;
+                                $inheritance = [];
+                                $info = [];
+
+                                while($par = $par->getParentClass()) {
+                                    array_unshift($inheritance, $par->getName());
+                                }
+
+                                if($inheritance)
+                                    $info["inheritance"] = $inheritance;
+
+                                if($class->isInstantiable() == false)
+                                    $info["isAbstract"] = true;
+
+                                if(($doc = $class->getDocComment()) && preg_match_all("/^\s*\*\s*@(display|module)\s*(.*?)\s*$/im", $doc, $ms)) {
+                                    foreach($ms[1] as $idx => $pn) {
+                                        if(strcasecmp($pn, 'display') == 0)
+                                            $info["display"] = $ms[2][$idx];
+                                        elseif(strcasecmp($pn, 'module') == 0)
+                                            $info["module"] = $ms[2][$idx];
+                                    }
+                                }
+
+                                $methods = [];
+
+                                if($class->implementsInterface( ExposeClassMethodsInterface::class )) {
+                                    $methodFilterOptions = $className::getMethodFilterOptions();
+
+                                    foreach ($class->getMethods( $methodFilterOptions  ) as $method) {
+
+                                        if($methodFilterOptions & ExposeClassMethodsInterface::FILTER_STATIC && $method->isStatic() == false)
+                                            continue;
+                                        if($methodFilterOptions & ExposeClassMethodsInterface::FILTER_OBJECTIVE && $method->isStatic())
+                                            continue;
+
+                                        if($methodFilterOptions & ExposeClassMethodsInterface::FILTER_EXCLUDE_MAGIC && strpos($method->getName(), "__") === 0)
+                                            continue;
+
+                                        $mthd = [];
+
+                                        if(($doc = $method->getDocComment()) && preg_match_all("/^\s*\*\s*@(purpose|display)\s*(.*?)\s*$/im", $doc, $ms)) {
+                                            $mn = "$className::".$method->getName();
+                                            foreach($ms[1] as $idx => $pn) {
+                                                if(strcasecmp($pn, 'purpose') == 0)
+                                                    $this->registerPurpose($ms[2][$idx], $mn, true);
+                                                elseif(strcasecmp($pn, 'display') == 0)
+                                                    $mthd["display"] = $ms[2][$idx];
+                                            }
+                                        } elseif($methodFilterOptions & ExposeClassMethodsInterface::FILTER_PURPOSED_ONLY)
+                                            continue;
+
+                                        if($method->isStatic())
+                                            $mthd["isStatic"] = true;
+                                        if($method->isPublic())
+                                            $mthd["isPublic"] = true;
+                                        if($method->isInternal())
+                                            $mthd["isInternal"] = true;
+                                        if($method->isAbstract())
+                                            $mthd["isAbstract"] = true;
+                                        if($method->isConstructor())
+                                            $mthd["isConstructor"] = true;
+                                        if($method->isDeprecated())
+                                            $mthd["isDeprecated"] = true;
+                                        if($method->isDestructor())
+                                            $mthd["isDestructor"] = true;
+                                        if($method->isFinal())
+                                            $mthd["isFinal"] = true;
+                                        if($method->isPrivate())
+                                            $mthd["isPrivate"] = true;
+                                        if($method->isProtected())
+                                            $mthd["isProtected"] = true;
+
+                                        if($return = $method->getReturnType())
+                                            $mthd["return"] = $return->getName();
+
+
+                                        $methods[ $method->getName() ] = $mthd;
+                                    }
+                                }
+                                if($methods) {
+                                    $info["methods"] = $methods;
+                                }
+
+                                $this->registered["classes"][$className] = $info;
+                            }
+                        }
+                    } catch (ReflectionException $exception) {
+                        echo "Class $className not found\n";
+                    } catch (Throwable $exception) {
+                        echo "E: ", $exception->getMessage(), "\n";
+                    }
+                }
+            }
+        }
+        $context->getValueCache()->postValue($this->registered, 'exposedSymbols');
+        $data = var_export($this->registered, true);
+        $dir = $context->getSkylineAppDirectory(CompilerConfiguration::SKYLINE_DIR_COMPILED);
+        file_put_contents( "$dir/exposed.classes.php", "<?php\nreturn $data;" );
+    }
+
+
+    private function registerPurpose(string $purpose, string $className, bool $isMethod = false) {
+        if(!$isMethod)
+            $array = &$this->registered["purposes"];
+        else
+            $array = &$this->registered["method_purposes"];
+
+        $ppParts = explode(".", strtoupper($purpose));
+        while($part = array_shift($ppParts)) {
+            if(!$ppParts)
+                break;
+            if(!isset($array[$part])) {
+                $array[$part] = ['#'=>[]];
+            }
+            $array = &$array[$part];
+        }
+
+        if(!isset($array[$part]))
+            $array[$part] = [];
+
+        $list = &$array[$part];
+
+        $list["#"][] = $className;
+    }
+
+
+    public function getCompilerName(): string
+    {
+        return "Expose Symbols Compiler";
+    }
+}
