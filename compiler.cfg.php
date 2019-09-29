@@ -22,11 +22,18 @@
  */
 
 use Skyline\Compiler\Factory\AbstractExtendedCompilerFactory;
+use Skyline\Compiler\Project\Attribute\SearchPathAttribute;
+use Skyline\Expose\Compiler\AbstractExposedSymbolsCompiler;
 use Skyline\Expose\Compiler\FindExposedSymbolsCompiler;
 
 return [
     'expose-symbols' => [
         AbstractExtendedCompilerFactory::COMPILER_CLASS_KEY => FindExposedSymbolsCompiler::class,
+        AbstractExtendedCompilerFactory::COMPILER_ARGUMENTS_KEY => [
+            'searchPaths' => [
+                SearchPathAttribute::SEARCH_PATH_CLASSES
+            ]
+        ],
         AbstractExtendedCompilerFactory::COMPILER_DEPENDENCIES_KEY => [
             'composer-packages-order'
         ]

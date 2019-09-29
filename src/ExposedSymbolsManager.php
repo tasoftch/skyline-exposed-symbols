@@ -51,8 +51,8 @@ class ExposedSymbolsManager
 
     public function __construct($filename)
     {
-        if(is_file($filename)) {
-            $cfg = require $filename;
+        if(is_file($filename) || is_array($filename)) {
+            $cfg = is_array($filename) ? $filename : require $filename;
             $this->classPurposes = $cfg["purposes"] ?? [];
             $this->methodPurposes = $cfg["method_purposes"] ?? [];
             $this->classDeclarations = $cfg["classes"] ?? [];

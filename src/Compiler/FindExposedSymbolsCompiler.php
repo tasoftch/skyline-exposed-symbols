@@ -47,12 +47,25 @@ use Throwable;
 
 class FindExposedSymbolsCompiler extends AbstractCompiler
 {
-    private $registered = ["purposes" => [], "method_purposes" => [], "classes" => []];
+    private $registered = ["purposes" => [], "method_purposes" => [], "classes" => [], 'methods' => []];
+    private $searchPaths;
 
+    const CACHE_EXPOSED_SYMBOLS = 'exposedSymbols';
+    const CACHE_CLASS_REFLECTIONS = 'classReflections';
+
+
+    public function __construct(string $compilerID, array $searchPaths = NULL)
+    {
+        parent::__construct($compilerID);
+        if(!$searchPaths)
+            $searchPaths = [ SearchPathAttribute::SEARCH_PATH_CLASSES ];
+        $this->searchPaths = $searchPaths;
+    }
 
     public function compile(CompilerContext $context)
     {
-        foreach($context->getSourceCodeManager()->yieldSourceFiles("/^[a-z_][a-z_0-9]*?\.php$/i", [ SearchPathAttribute::SEARCH_PATH_CLASSES ]) as $file) {
+        $reflections = [];
+        foreach($context->getSourceCodeManager()->yieldSourceFiles("/^[a-z_][a-z_0-9]*?\.php$/i", $this->searchPaths) as $file) {
             if(preg_match("/^([a-z_][a-z_0-9]*?)\.php$/i", basename($file), $ms)) {
                 $className = $ms[1];
 
@@ -66,6 +79,8 @@ class FindExposedSymbolsCompiler extends AbstractCompiler
                     try {
                         if(class_exists($className)) {
                             $class = new ReflectionClass($className);
+
+                            $reflections[$className] = $class;
 
                             if ($class->implementsInterface(ExposeClassInterface::class)) {
                                 $purposes = $className::getPurposes();
@@ -150,6 +165,7 @@ class FindExposedSymbolsCompiler extends AbstractCompiler
 
 
                                         $methods[ $method->getName() ] = $mthd;
+                                        $this->registered["methods"][ $className . "::" . $method->getName() ] = $mthd;
                                     }
                                 }
                                 if($methods) {
@@ -167,7 +183,9 @@ class FindExposedSymbolsCompiler extends AbstractCompiler
                 }
             }
         }
-        $context->getValueCache()->postValue($this->registered, 'exposedSymbols');
+        $context->getValueCache()->postValue($this->registered, self::CACHE_EXPOSED_SYMBOLS);
+        $context->getValueCache()->postValue($reflections, self::CACHE_CLASS_REFLECTIONS);
+
         $data = var_export($this->registered, true);
         $dir = $context->getSkylineAppDirectory(CompilerConfiguration::SKYLINE_DIR_COMPILED);
         file_put_contents( "$dir/exposed.classes.php", "<?php\nreturn $data;" );
