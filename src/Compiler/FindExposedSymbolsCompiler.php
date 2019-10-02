@@ -164,9 +164,11 @@ class FindExposedSymbolsCompiler extends AbstractCompiler
                                             $mthd["return"] = $return->getName();
 
                                         $this->registered["methods"][ $className . "::" . $method->getName() ] = $mthd;
+                                        $methods[] = $method->getName();
                                     }
                                 }
-
+                                if($methods)
+                                    $info["methodNames"] = $methods;
                                 $this->registered["classes"][$className] = $info;
                             }
                         }

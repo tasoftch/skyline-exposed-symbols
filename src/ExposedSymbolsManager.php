@@ -87,6 +87,37 @@ class ExposedSymbolsManager
         yield from $deepSearch($ppParts, $this->methodPurposes);
     }
 
+    /**
+     * Returns the name of an exposed class
+     * Names are provided using the @display annotation tag in class doc comment
+     *
+     * @param string $className
+     * @return string|null
+     */
+    public function getDisplayNameOfClass(string $className): ?string {
+        if($cl = $this->classDeclarations[$className] ?? NULL) {
+            if($cl instanceof ClassSymbol)
+                return $cl->getSymbolName();
+            return $cl["display"] ?? NULL;
+        }
+        return NULL;
+    }
+
+    /**
+     * Returns the name of an exposed method
+     * Names are provided using the @display annotation tag in method doc comment
+     *
+     * @param string $methodName
+     * @return string|null
+     */
+    public function getDisplayNameOfMethod(string $methodName): ?string {
+        if($cl = $this->methodDeclarations[$methodName] ?? NULL) {
+            if($cl instanceof MethodSymbol)
+                return $cl->getSymbolName();
+            return $cl["display"] ?? NULL;
+        }
+        return NULL;
+    }
 
     private function getDeepSearchClosure($includeParents = false): Closure {
         $deepSearch = function($parts, $array, $ppReal = "", $pass = false) use (&$deepSearch, $includeParents) {
@@ -113,6 +144,12 @@ class ExposedSymbolsManager
         return $deepSearch;
     }
 
+    /**
+     * Loads the exposed class by a name if exists.
+     *
+     * @param $className
+     * @return ClassSymbol|null
+     */
     public function getExposedClass($className): ?ClassSymbol {
         $class = $this->classDeclarations[ $className ] ?? NULL;
         if(is_null($class))
@@ -143,39 +180,8 @@ class ExposedSymbolsManager
 
             if($methods = @$class["methods"]) {
                 $mthds = [];
-                foreach($methods as $methodName => $methodInfo) {
-                    $vim = new class($mt = new MethodSymbol("$className::$methodName", $methodInfo["display"] ?? NULL, $class["module"] ?? NULL)) {
-                        private $obj;
-                        private $cb;
-                        public function __construct($obj)
-                        {
-                            $this->obj = $obj;
-                            $this->cb = (function($name, $value) {
-                                $this->$name = $value;
-                            })->bindTo($obj, get_class($obj));
-                        }
-
-                        public function __set($name, $value)
-                        {
-                            ($this->cb)($name, $value);
-                        }
-                    };
-
-                    $vim->parentClass = $cl;
-                    $vim->isPublic = @$methodInfo["isPublic"] ? true : false;
-                    $vim->isProtected = @$methodInfo["isProtected"] ? true : false;
-                    $vim->isPrivate = @$methodInfo["isPrivate"] ? true : false;
-
-                    $vim->isAbstract = @$methodInfo["isAbstract"] ? true : false;
-                    $vim->isFinal = @$methodInfo["isFinal"] ? true : false;
-                    $vim->isStatic = @$methodInfo["isStatic"] ? true : false;
-
-                    $vim->isInternal = @$methodInfo["isInternal"] ? true : false;
-                    $vim->isConstructor = @$methodInfo["isConstructor"] ? true : false;
-                    $vim->isDestructor = @$methodInfo["isDestructor"] ? true : false;
-
-                    $mthds[$methodName] = $mt;
-                    $this->methodDeclarations[ $mt->getQualifiedName() ] = $mt;
+                foreach($methods as $methodName) {
+                    $mthds[] = $this->getExposedMethod("$className::$methodName");
                 }
                 $vi->exposedMethods = $mthds;
             }
@@ -184,21 +190,52 @@ class ExposedSymbolsManager
         return $class;
     }
 
-
+    /**
+     * Loads the exposed method by a name if exists.
+     *
+     * @param $methodName
+     * @return MethodSymbol|null
+     */
     public function getExposedMethod($methodName): ?MethodSymbol {
-        $method = $this->methodDeclarations[$methodName] ?? NULL;
-        if($method === false)
+        $methodInfo = $this->methodDeclarations[$methodName] ?? NULL;
+        if($methodInfo === false)
             return NULL;
-        if(!($method instanceof MethodSymbol)) {
+        if(!($methodInfo instanceof MethodSymbol)) {
             $className = explode("::", $methodName, 2)[0];
-            $class = $this->getExposedClass($className);
-            if(!$class) {
-                $method = NULL;
-                $this->methodDeclarations[$methodName] = false;
-            } else {
-                return $this->methodDeclarations[$methodName] ?? NULL;
-            }
+
+            $vim = new class($mt = new MethodSymbol("$methodName", $methodInfo["display"] ?? NULL)) {
+                private $obj;
+                private $cb;
+                public function __construct($obj)
+                {
+                    $this->obj = $obj;
+                    $this->cb = (function($name, $value) {
+                        $this->$name = $value;
+                    })->bindTo($obj, get_class($obj));
+                }
+
+                public function __set($name, $value)
+                {
+                    ($this->cb)($name, $value);
+                }
+            };
+
+            $vim->parentClass = $this->getExposedClass($className);
+            $vim->isPublic = @$methodInfo["isPublic"] ? true : false;
+            $vim->isProtected = @$methodInfo["isProtected"] ? true : false;
+            $vim->isPrivate = @$methodInfo["isPrivate"] ? true : false;
+
+            $vim->isAbstract = @$methodInfo["isAbstract"] ? true : false;
+            $vim->isFinal = @$methodInfo["isFinal"] ? true : false;
+            $vim->isStatic = @$methodInfo["isStatic"] ? true : false;
+
+            $vim->isInternal = @$methodInfo["isInternal"] ? true : false;
+            $vim->isConstructor = @$methodInfo["isConstructor"] ? true : false;
+            $vim->isDestructor = @$methodInfo["isDestructor"] ? true : false;
+
+            $this->methodDeclarations[ $mt->getQualifiedName() ] = $mt;
+            $methodInfo = $mt;
         }
-        return $method;
+        return $methodInfo;
     }
 }
