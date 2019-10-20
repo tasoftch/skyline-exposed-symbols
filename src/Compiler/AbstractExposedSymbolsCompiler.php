@@ -198,6 +198,13 @@ abstract class AbstractExposedSymbolsCompiler extends AbstractCompiler
         return NULL;
     }
 
+    /**
+     * Tries to qualify a symbol using php's import mechanism
+     *
+     * @param $symbolName
+     * @param $classContext
+     * @return string|null
+     */
     protected function qualifySymbol($symbolName, $classContext) {
         $classes = $this->getExposedClasses();
         if($classes && isset($classes[$classContext])) {
