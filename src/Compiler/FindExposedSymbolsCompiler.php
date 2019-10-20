@@ -96,6 +96,17 @@ class FindExposedSymbolsCompiler extends AbstractCompiler
                                     array_unshift($inheritance, $par->getName());
                                 }
 
+                                if(preg_match_all("/^\s*use\s+([a-z_0-9\\\]+)\s*;/im", $contents, $ms)) {
+                                    $imports = [];
+                                    foreach ($ms[1] as $import) {
+                                        $i = explode("\\", $import);
+                                        $imports[ array_pop($i) ] = $import;
+                                    }
+                                    $info["imports"] = $imports;
+                                }
+
+
+
                                 if($inheritance)
                                     $info["inheritance"] = $inheritance;
 
