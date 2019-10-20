@@ -206,9 +206,10 @@ abstract class AbstractExposedSymbolsCompiler extends AbstractCompiler
      * @return string|null
      */
     protected function qualifySymbol($symbolName, $classContext) {
-        $classes = $this->getExposedClasses();
-        if($classes && isset($classes[$classContext])) {
-            if($imports = $classes[$classContext]["imports"] ?? NULL) {
+        $ctx = CompilerContext::getCurrentCompiler();
+        if($ctx) {
+            $symbols = $ctx->getValueCache()->fetchValue( FindExposedSymbolsCompiler::CACHE_EXPOSED_SYMBOLS );
+            if($imports = $symbols["classes"][$classContext]["imports"] ?? NULL) {
                 return $imports[$symbolName] ?? $symbolName;
             }
         }
