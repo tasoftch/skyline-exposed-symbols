@@ -76,6 +76,9 @@ class FindExposedSymbolsCompiler extends AbstractCompiler
                     }
 
                     try {
+                        $repetitionBlock = 0;
+                        restart:
+
                         if(class_exists($className)) {
                             $class = new ReflectionClass($className);
 
@@ -186,6 +189,12 @@ class FindExposedSymbolsCompiler extends AbstractCompiler
                                 if($methods)
                                     $info["methodNames"] = $methods;
                                 $this->registered["classes"][$className] = $info;
+                            }
+                        } else {
+                            include $file;
+                            if(!$repetitionBlock) {
+                                $repetitionBlock = 1;
+                                goto restart;
                             }
                         }
                     } catch (ReflectionException $exception) {
