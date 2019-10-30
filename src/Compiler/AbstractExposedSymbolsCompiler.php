@@ -219,6 +219,21 @@ abstract class AbstractExposedSymbolsCompiler extends AbstractCompiler
         return NULL;
     }
 
+    /**
+     * Returns the module name if a class is part of a module
+     *
+     * @param $classContext
+     * @return string|null
+     */
+    protected function getDeclaredModule($classContext) {
+        $ctx = CompilerContext::getCurrentCompiler();
+        if($ctx) {
+            $symbols = $ctx->getValueCache()->fetchValue( FindExposedSymbolsCompiler::CACHE_EXPOSED_SYMBOLS );
+            return $symbols["classes"][$classContext]["module"] ?? NULL;
+        }
+        return NULL;
+    }
+
 
     /**
      * @internal

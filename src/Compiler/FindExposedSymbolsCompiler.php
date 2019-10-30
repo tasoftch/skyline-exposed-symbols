@@ -68,10 +68,6 @@ class FindExposedSymbolsCompiler extends AbstractCompiler
         foreach($context->getSourceCodeManager()->yieldSourceFiles("/^[a-z_][a-z_0-9]*?\.php$/i", $this->searchPaths) as $file) {
             if(preg_match("/^([a-z_][a-z_0-9]*?)\.php$/i", basename($file), $ms)) {
                 $className = $ms[1];
-                $theModuleName = "";
-
-                $context->getSourceCodeManager()->isFilePartOfModule( $file, $theModuleName );
-
                 $contents = file_get_contents($file);
 
                 if(preg_match("/class\s+$className/i", $contents)) {
@@ -90,6 +86,10 @@ class FindExposedSymbolsCompiler extends AbstractCompiler
                                 foreach($purposes as $purpose) {
                                     $this->registerPurpose($purpose, $className);
                                 }
+
+                                $theModuleName = "";
+                                $context->getSourceCodeManager()->isFilePartOfModule( $file, $theModuleName );
+
 
                                 $par = $class;
                                 $inheritance = [];
