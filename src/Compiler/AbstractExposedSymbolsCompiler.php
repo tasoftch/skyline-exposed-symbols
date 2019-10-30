@@ -118,6 +118,9 @@ abstract class AbstractExposedSymbolsCompiler extends AbstractCompiler
                 if($this->excludeMagicMethods && strpos($mthd->getName(), "__") === 0)
                     continue;
 
+                if($mthd->getDeclaringClass()->getName() != $className)
+                    continue;
+
                 $methods[ $className . "::" . $mthd->getName() ] = $mthd;
             }
             return $methods;
