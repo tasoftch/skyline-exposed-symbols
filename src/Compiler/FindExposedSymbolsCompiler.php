@@ -65,6 +65,11 @@ class FindExposedSymbolsCompiler extends AbstractCompiler
     public function compile(CompilerContext $context)
     {
         $reflections = [];
+
+        spl_autoload_register($alf = function($className) {
+            throw new \RuntimeException("Class $className not found");
+        });
+
         foreach($context->getSourceCodeManager()->yieldSourceFiles("/^[a-z_][a-z_0-9]*?\.php$/i", $this->searchPaths) as $file) {
             if(preg_match("/^([a-z_][a-z_0-9]*?)\.php$/i", basename($file), $ms)) {
                 $className = $ms[1];
@@ -211,6 +216,8 @@ class FindExposedSymbolsCompiler extends AbstractCompiler
         $data = var_export($this->registered, true);
         $dir = $context->getSkylineAppDirectory(CompilerConfiguration::SKYLINE_DIR_COMPILED);
         file_put_contents( "$dir/exposed.classes.php", "<?php\nreturn $data;" );
+
+        spl_autoload_unregister($alf);
     }
 
 
