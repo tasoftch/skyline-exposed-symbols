@@ -203,9 +203,9 @@ class FindExposedSymbolsCompiler extends AbstractCompiler
                             }
                         }
                     } catch (ReflectionException $exception) {
-                        echo "Class $className not found\n";
+                        $context->getLogger()->logError("Class $className not found");
                     } catch (Throwable $exception) {
-                        echo "E: ", $exception->getMessage(), "\n";
+						$context->getLogger()->logError("E: " . $exception->getMessage());
                     }
                 }
             }
